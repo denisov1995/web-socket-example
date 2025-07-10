@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Простой чат</title>
+  </head>
+  <body>
+    <h2>Чат</h2>
+    <div id="chat"></div>
+    <input id="msgInput" type="text" placeholder="Введите сообщение" />
+    <button onclick="sendMessage()">Отправить</button>
+
+    <script>
+      const ws = new WebSocket(`ws://${window.location.host}`);
+
+      const chat = document.getElementById("chat");
+
+      ws.onopen = () => {
+        console.log("✅ WebSocket соединение установлено");
+      };
+
+      ws.onerror = (err) => {
+        console.error("❌ Ошибка WebSocket:", err);
+      };
+
+      ws.onclose = () => {
+        console.warn("⚠️ WebSocket соединение закрыто");
+      };
+
+      ws.onmessage = (event) => {
+        const msg = document.createElement("div");
+        msg.textContent = event.data;
+        chat.appendChild(msg);
+      };
+      function sendMessage() {
+        const input = document.getElementById("msgInput");
+        const text = input.value.trim();
+        if (text) {
+          ws.send(text); // отправляем строку
+          input.value = "";
+        }
+      }
+    </script>
+  </body>
+</html>

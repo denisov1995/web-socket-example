@@ -11,7 +11,13 @@ const MAX_HISTORY = 50;
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: "https://your-frontend-url.onrender.com",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 
 const USERS_FILE = path.join(__dirname, "users.json");
 const PORT = process.env.PORT || 3000;

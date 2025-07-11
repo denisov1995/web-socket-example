@@ -1,45 +1,47 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>Простой чат</title>
-  </head>
-  <body>
-    <h2>Чат</h2>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Авторизованный чат</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="chat.js" defer></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #chat { border: 1px solid #ccc; padding: 10px; max-height: 300px; overflow-y: auto; margin-bottom: 10px; }
+    #login, #register { margin-bottom: 20px; }
+    .msg { margin: 5px 0; }
+    .avatar { width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 5px; }
+  </style>
+</head>
+<body>
+  <div id="auth">
+    <div id="register">
+      <h3>Регистрация</h3>
+      <input id="regName" placeholder="Имя" />
+      <input id="regPass" type="password" placeholder="Пароль" />
+      <input id="regAvatar" type="file" />
+      <button onclick="register()">Зарегистрироваться</button>
+    </div>
+
+    <div id="login">
+      <h3>Вход</h3>
+      <input id="logName" placeholder="Имя" />
+      <input id="logPass" type="password" />
+      <button onclick="login()">Войти</button>
+    </div>
+  </div>
+
+  <div id="chatUI" style="display:none;">
+    <div id="users"></div>
     <div id="chat"></div>
-    <input id="msgInput" type="text" placeholder="Введите сообщение" />
-    <button onclick="sendMessage()">Отправить</button>
+    <input id="msgInput" placeholder="Введите сообщение" />
+    <button disabled id="sendBtn" onclick="sendMessage()">Отправить</button>
+  </div>
 
-    <script>
-     const ws = new WebSocket(`wss://${window.location.host}`);
+  <script>
+    console.log(555, document.cookie);
 
-
-      const chat = document.getElementById("chat");
-
-      ws.onopen = () => {
-        console.log("✅ WebSocket соединение установлено");
-      };
-
-      ws.onerror = (err) => {
-        console.error("❌ Ошибка WebSocket:", err);
-      };
-
-      ws.onclose = () => {
-        console.warn("⚠️ WebSocket соединение закрыто");
-      };
-
-      ws.onmessage = (event) => {
-        const msg = document.createElement("div");
-        msg.textContent = event.data;
-        chat.appendChild(msg);
-      };
-      function sendMessage() {
-        const input = document.getElementById("msgInput");
-        const text = input.value.trim();
-        if (text) {
-          ws.send(text); // отправляем строку
-          input.value = "";
-        }
-      }
-    </script>
-  </body>
+  </script>
+</body>
 </html>

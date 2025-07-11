@@ -1,20 +1,17 @@
 {
-  "name": "websocketchat",
+  "name": "socketio-auth-chat",
   "version": "1.0.0",
-  "description": "Минимальный WebSocket чат на Node.js и Express",
+  "description": "Чат с авторизацией, регистрацией и аватарками на Socket.IO",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node server.js"
   },
-  "keywords": ["websocket", "чат", "nodejs", "express", "ws"],
   "author": "Artem",
   "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
-    "ws": "^8.18.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+    "socket.io": "^4.7.2",
+    "cookie-parser": "^1.4.6",
+    "fs-extra": "^11.1.1"
   }
 }

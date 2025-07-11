@@ -30,7 +30,7 @@ app.use(cookieParser());
 // 📦 Регистрация
 app.post("/api/register", async (req, res) => {
   const { username, password, avatar } = req.body;
-  if (!username || !password || !avatar)
+  if (!username || !password )
     return res.status(400).json({ error: "Все поля обязательны" });
 
   const users = await fs.readJson(USERS_FILE).catch(() => []);

@@ -6,20 +6,20 @@ let myUsername = null;
 async function register() {
   const username = document.getElementById("regName").value.trim();
   const password = document.getElementById("regPass").value.trim();
-  const file = document.getElementById("regAvatar").files[0];
+  // const file = document.getElementById("regAvatar").files[0];
 
-  if (!username || !password || !file) return alert("Заполните все поля");
-  if (file.size > 1024 * 1024)
-    return alert("Аватар слишком большой (макс 1MB)");
+  // if (!username || !password || !file) return alert("Заполните все поля");
+  // if (file.size > 1024 * 1024)
+  //   return alert("Аватар слишком большой (макс 1MB)");
 
-  const reader = new FileReader();
-  reader.onload = async () => {
+  // const reader = new FileReader();
+  // reader.onload = async () => {
     try {
       const response = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ username, password, avatar: reader.result }),
+        body: JSON.stringify({ username, password, }),
       });
 
       if (!response.ok) {
@@ -38,8 +38,8 @@ async function register() {
     } catch (err) {
       alert(err.message);
     }
-  };
-  reader.readAsDataURL(file);
+  // };
+  // reader.readAsDataURL(file);
 }
 
 async function login() {

@@ -1,43 +1,72 @@
 <!DOCTYPE html>
 <html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <title>Авторизованный чат</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="chat.js" defer></script>
-  <link rel="stylesheet" href="style.css">
-  <style>
-    body { font-family: sans-serif; padding: 20px; }
-    #chat { border: 1px solid #ccc; padding: 10px; max-height: 300px; overflow-y: auto; margin-bottom: 10px; }
-    #login, #register { margin-bottom: 20px; }
-    .msg { margin: 5px 0; }
-    .avatar { width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 5px; }
-  </style>
-</head>
-<body>
-  <div id="auth">
-    <div id="register">
-      <h3>Регистрация</h3>
-      <input id="regName" placeholder="Имя" />
-      <input id="regPass" type="password" placeholder="Пароль" />
-      <!-- <input id="regAvatar" type="file" /> -->
-      <button onclick="register()">Зарегистрироваться</button>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Авторизованный чат</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="chat.js" defer></script>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+      }
+      #chat {
+        border: 1px solid #ccc;
+        padding: 10px;
+        max-height: 300px;
+        overflow-y: auto;
+        margin-bottom: 10px;
+      }
+      #login,
+      #register {
+        margin-bottom: 20px;
+      }
+      .msg {
+        margin: 5px 0;
+      }
+      .avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        vertical-align: middle;
+        margin-right: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="auth">
+      <div id="register">
+        <h3>Регистрация</h3>
+        <input id="regName" placeholder="Имя" />
+        <input id="regPass" type="password" placeholder="Пароль" />
+        <!-- <input id="regAvatar" type="file" /> -->
+        <button onclick="register()">Зарегистрироваться</button>
+      </div>
+
+      <div id="login">
+        <h3>Вход</h3>
+        <input id="logName" placeholder="Имя" />
+        <input id="logPass" type="password" />
+        <button onclick="login()">Войти</button>
+      </div>
     </div>
 
-    <div id="login">
-      <h3>Вход</h3>
-      <input id="logName" placeholder="Имя" />
-      <input id="logPass" type="password" />
-      <button onclick="login()">Войти</button>
+    <div id="chatUI" style="display: none">
+      <div id="publicChatContainer">
+        <h3>Общий чат</h3>
+        <div id="publicChat" class="chat-box"></div>
+        <input
+          type="text"
+          id="publicInput"
+          placeholder="Написать в общий чат"
+        />
+        <button onclick="sendPublicMessage()">Отправить</button>
+      </div>
+      <div id="users"></div>
+      <div id="chat"></div>
+      <input id="msgInput" placeholder="Введите сообщение" />
+      <button disabled id="sendBtn" onclick="sendMessage()">Отправить</button>
     </div>
-  </div>
-
-  <div id="chatUI" style="display:none;">
-    <div id="users"></div>
-    <div id="chat"></div>
-    <input id="msgInput" placeholder="Введите сообщение" />
-    <button disabled id="sendBtn" onclick="sendMessage()">Отправить</button>
-  </div>
-
-</body>
+  </body>
 </html>

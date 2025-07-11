@@ -15,8 +15,8 @@ const io = new Server(server, {
   cors: {
     origin: "https://your-frontend-url.onrender.com",
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+  },
 });
 
 const USERS_FILE = path.join(__dirname, "users.json");
@@ -30,7 +30,7 @@ app.use(cookieParser());
 // 📦 Регистрация
 app.post("/api/register", async (req, res) => {
   const { username, password, avatar } = req.body;
-  if (!username || !password )
+  if (!username || !password)
     return res.status(400).json({ error: "Все поля обязательны" });
 
   const users = await fs.readJson(USERS_FILE).catch(() => []);
@@ -93,18 +93,31 @@ server.listen(PORT, () => {
 });
 
 // 📋 Отправка списка пользователей
-const broadcastUsers = () => {
-  const userList = [];
-  // console.log("io.of('/').sockets", io.of("/").sockets)
+const broadcastUsers = async () => {
+  try {
+    const allUsers = await fs.readJson(USERS_FILE).catch(() => []);
+    const connectedUsernames = new Set();
 
-  for (let [id, s] of io.of("/").sockets) {
-    console.log("id, s", id, s);
-
-    if (s.username) {
-      userList.push({ userID: id, username: s.username });
+    for (let [, socket] of io.of("/").sockets) {
+      if (socket.username) {
+        connectedUsernames.add(socket.username);
+      }
     }
+
+    for (let [, socket] of io.of("/").sockets) {
+      const userList = allUsers
+        .filter((u) => u.username !== socket.username) // ← исключаем самого себя
+        .map((u) => ({
+          username: u.username,
+          avatar: u.avatar,
+          online: connectedUsernames.has(u.username),
+        }));
+
+      socket.emit("users", userList); // каждому отправляем свой список
+    }
+  } catch (err) {
+    console.error("❌ Ошибка при сборе списка пользователей:", err.message);
   }
-  io.emit("users", userList);
 };
 
 // ⚡ Socket.IO
@@ -138,6 +151,9 @@ io.on("connection", async (socket) => {
 
     // Отправляем историю только что подключившемуся пользователю
     socket.emit("message history", userMessages.slice(-MAX_HISTORY));
+
+    const publicHistory = allMessages.filter((msg) => msg.to === "public");
+    socket.emit("public history", publicHistory.slice(-MAX_HISTORY));
   } catch (err) {
     console.error("Ошибка загрузки истории:", err);
   }
@@ -151,13 +167,14 @@ io.on("connection", async (socket) => {
   });
 
   // 💬 Приватные сообщения
-  socket.on("private message", async ({ content, to }) => {
-    const receiverSocket = io.of("/").sockets.get(to);
-    if (!receiverSocket) return;
+  socket.on("private message", async ({ content, toUsername }) => {
+    console.log(
+      `💬 Сообщение от ${socket.username} → ${toUsername}: ${content}`
+    );
 
     const message = {
       from: socket.username,
-      to: receiverSocket.username, // Теперь сохраняем username получателя
+      to: toUsername,
       text: content,
       avatar: socket.avatar,
       timestamp: new Date().toISOString(),
@@ -171,7 +188,32 @@ io.on("connection", async (socket) => {
       console.error("Ошибка сохранения:", err);
     }
 
-    socket.to(to).emit("private message", message);
+    // 💬 Отправить получателю, если он онлайн
+    for (let [id, s] of io.of("/").sockets) {
+      if (s.username === toUsername) {
+        io.to(id).emit("private message", message);
+        break;
+      }
+    }
+
+    // ✉️ Отправить самому себе подтверждение
+    socket.emit("private message", message);
+  });
+
+  socket.on("public message", async (content) => {
+    const message = {
+      from: socket.username,
+      text: content,
+      avatar: socket.avatar,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Сохраняем в общий файл истории
+    const allMessages = await fs.readJson(MESSAGES_FILE).catch(() => []);
+    allMessages.push({ ...message, to: "public" }); // → метка "public"
+    await fs.writeJson(MESSAGES_FILE, allMessages.slice(-MAX_HISTORY));
+
+    io.emit("public message", message); // Отправляем всем
   });
 
   socket.on("disconnect", () => {

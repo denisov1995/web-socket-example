@@ -299,7 +299,9 @@ async function initChat() {
     }
   });
 
-  socket.on("public message", ({ sender: from, avatar, text }) => {
+  socket.on("public message", ({ from, avatar, text }) => {
+    console.log("from", from);
+
     const div = document.createElement("div");
     div.className = "msg";
     if (from === myUsername) div.classList.add("you");
@@ -314,72 +316,84 @@ async function initChat() {
     const label = from === myUsername ? "Вы" : from;
     div.appendChild(document.createTextNode(`${label}: ${text}`));
     document.getElementById("publicChat").appendChild(div);
+    document.getElementById("publicChat").scrollTop =
+      document.getElementById("publicChat").scrollHeight;
   });
 
-  socket.on("private message", ({ sender: from, receiver: to, avatar, text }) => {
-    console.log('receiver', to);
-    
-    const isRelevant =
-      from === selectedUsername ||
-      (from === myUsername && to === selectedUsername);
+  socket.on(
+    "private message",
+    ({ sender: from, receiver: to, avatar, text }) => {
+      console.log("receiver", to);
 
-      console.log('isRelevant', isRelevant);
-      
+      const isRelevant =
+        from === selectedUsername ||
+        (from === myUsername && to === selectedUsername);
 
-    if (isRelevant) {
+      console.log("isRelevant", isRelevant);
+
+      if (isRelevant) {
+        const div = document.createElement("div");
+        div.className = "msg";
+        if (from === myUsername) div.classList.add("you");
+
+        if (avatar) {
+          const img = document.createElement("img");
+          img.src = avatar;
+          img.className = "avatar";
+          div.appendChild(img);
+        }
+
+        const label = from === myUsername ? "Вы" : from;
+        div.appendChild(document.createTextNode(`${label}: ${text}`));
+        document.getElementById("chat").appendChild(div);
+        document.getElementById("chat").scrollTop =
+          document.getElementById("chat").scrollHeight;
+      } else if (to === myUsername) {
+        if (!unreadMessages.includes(from)) unreadMessages.push(from);
+        renderUsers();
+      }
+    }
+  );
+
+  socket.on(
+    "private image",
+    ({ sender: from, receiver: to, image, avatar }) => {
+      const isRelevant =
+        from === selectedUsername ||
+        (from === myUsername && to === selectedUsername);
+
+      if (!isRelevant) return;
+
       const div = document.createElement("div");
       div.className = "msg";
       if (from === myUsername) div.classList.add("you");
 
       if (avatar) {
-        const img = document.createElement("img");
-        img.src = avatar;
-        img.className = "avatar";
-        div.appendChild(img);
+        const imgAvatar = document.createElement("img");
+        imgAvatar.src = avatar;
+        imgAvatar.className = "avatar";
+        div.appendChild(imgAvatar);
       }
 
       const label = from === myUsername ? "Вы" : from;
-      div.appendChild(document.createTextNode(`${label}: ${text}`));
-      document.getElementById("chat").appendChild(div);
-      document.getElementById("chat").scrollTop =
-        document.getElementById("chat").scrollHeight;
-    } else if (to === myUsername) {
-      if (!unreadMessages.includes(from)) unreadMessages.push(from);
-      renderUsers();
+      div.appendChild(document.createTextNode(`${label}: `));
+
+      const img = document.createElement("img");
+      img.src = image;
+      img.style.maxWidth = "200px";
+      img.style.borderRadius = "6px";
+      img.style.marginTop = "6px";
+      div.appendChild(img);
+
+      const chatDiv = document.getElementById("chat");
+      chatDiv.appendChild(div);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
     }
-  });
+  );
 
-  socket.on("private image", ({ sender: from, receiver: to, image, avatar }) => {
-    const isRelevant =
-      from === selectedUsername ||
-      (from === myUsername && to === selectedUsername);
-
-    if (!isRelevant) return;
-
-    const div = document.createElement("div");
-    div.className = "msg";
-    if (from === myUsername) div.classList.add("you");
-
-    if (avatar) {
-      const imgAvatar = document.createElement("img");
-      imgAvatar.src = avatar;
-      imgAvatar.className = "avatar";
-      div.appendChild(imgAvatar);
-    }
-
-    const label = from === myUsername ? "Вы" : from;
-    div.appendChild(document.createTextNode(`${label}: `));
-
-    const img = document.createElement("img");
-    img.src = image;
-    img.style.maxWidth = "200px";
-    img.style.borderRadius = "6px";
-    img.style.marginTop = "6px";
-    div.appendChild(img);
-
-    const chatDiv = document.getElementById("chat");
-    chatDiv.appendChild(div);
-    chatDiv.scrollTop = chatDiv.scrollHeight;
+  socket.on("update preview", ({ username, lastText, lastFrom }) => {
+    // Найди нужную кнопку/элемент в списке
+    // Замени текст в .preview
   });
 
   socket.on("public history", (messages) => {

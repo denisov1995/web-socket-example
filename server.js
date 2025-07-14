@@ -109,27 +109,23 @@ app.post("/api/register", async (req, res) => {
 // 🔑 Логин
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
-  
+
   try {
     const user = await db.get(
       "SELECT username FROM users WHERE username = ? AND password = ?",
       [username, password]
     );
-    
+
     if (!user) {
       return res.status(401).json({ error: "Неверные данные" });
     }
 
-    res.cookie(
-      "profile",
-      JSON.stringify({ username: user.username }),
-      {
-        maxAge: 86400000,
-        httpOnly: false,
-        secure: false,
-        sameSite: "lax",
-      }
-    );
+    res.cookie("profile", JSON.stringify({ username: user.username }), {
+      maxAge: 86400000,
+      httpOnly: false,
+      secure: false,
+      sameSite: "lax",
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -140,7 +136,7 @@ app.post("/api/login", async (req, res) => {
 
 app.post("/api/mark-read", async (req, res) => {
   const { from, to } = req.body;
-  
+
   try {
     await db.run(
       "UPDATE messages SET is_read = 1 WHERE sender = ? AND receiver = ? AND is_read = 0",
@@ -155,7 +151,7 @@ app.post("/api/mark-read", async (req, res) => {
 
 app.get("/api/unread/:username", async (req, res) => {
   const currentUser = req.params.username;
-  
+
   try {
     const senders = await db.all(
       `SELECT DISTINCT sender 
@@ -163,8 +159,8 @@ app.get("/api/unread/:username", async (req, res) => {
        WHERE receiver = ? AND is_read = 0`,
       [currentUser]
     );
-    
-    res.json(senders.map(s => s.sender));
+
+    res.json(senders.map((s) => s.sender));
   } catch (err) {
     console.error("Ошибка получения непрочитанных:", err);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -173,7 +169,7 @@ app.get("/api/unread/:username", async (req, res) => {
 
 app.get("/api/messages", async (req, res) => {
   const { user1, user2 } = req.query;
-  
+
   try {
     const messages = await db.all(
       `SELECT * FROM messages 
@@ -183,7 +179,7 @@ app.get("/api/messages", async (req, res) => {
        LIMIT ?`,
       [user1, user2, user2, user1, MAX_HISTORY]
     );
-    
+
     res.json(messages.reverse());
   } catch (err) {
     console.error("Ошибка загрузки истории:", err);
@@ -335,7 +331,13 @@ io.on("connection", async (socket) => {
       await db.run(
         `INSERT INTO messages (sender, receiver, text, avatar, is_read)
          VALUES (?, ?, ?, ?, ?)`,
-        [message.sender, message.receiver, message.text, message.avatar, message.is_read]
+        [
+          message.sender,
+          message.receiver,
+          message.text,
+          message.avatar,
+          message.is_read,
+        ]
       );
 
       // Отправить получателю, если он онлайн
@@ -361,6 +363,8 @@ io.on("connection", async (socket) => {
     } catch (err) {
       console.error("Ошибка сохранения сообщения:", err);
     }
+
+    broadcastUsers();
   });
 
   socket.on("public message", async (content) => {
@@ -395,14 +399,22 @@ io.on("connection", async (socket) => {
       receiver: toUsername,
       image,
       avatar: socket.avatar,
+      text: "[Изображение 📷]",
       is_read: false,
     };
 
     try {
       await db.run(
-        `INSERT INTO messages (sender, receiver, image, avatar, is_read)
-         VALUES (?, ?, ?, ?, ?)`,
-        [message.sender, message.receiver, message.image, message.avatar, message.is_read]
+        `INSERT INTO messages (sender, receiver,text, image, avatar, is_read)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          message.sender,
+          message.receiver,
+          message.text,
+          message.avatar,
+          message.image,
+          message.is_read,
+        ]
       );
 
       // Отправка получателю и себе
@@ -413,6 +425,7 @@ io.on("connection", async (socket) => {
             from: message.sender,
             to: message.receiver,
             isRead: message.is_read,
+
             timestamp: new Date().toISOString(),
           });
         }
@@ -425,6 +438,7 @@ io.on("connection", async (socket) => {
         isRead: message.is_read,
         timestamp: new Date().toISOString(),
       });
+      broadcastUsers();
     } catch (err) {
       console.error("Ошибка сохранения изображения:", err);
     }

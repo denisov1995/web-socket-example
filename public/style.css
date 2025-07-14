@@ -78,9 +78,13 @@ button:hover {
   padding: 8px;
   background: #f0f4f7;
   border-radius: 6px;
-  display: flex;
   align-items: center;
   gap: 8px;
+
+  display: flex;
+  width: 100%;
+  word-break: break-word;
+  flex-wrap: wrap;
 }
 
 .msg.you {
@@ -122,11 +126,13 @@ button:hover {
   background: #ece9e6;
   color: #000;
   min-width: 400px;
+  max-width: 400px;
   display: flex;
   flex-direction: column;
   align-items: baseline;
   height: calc(100% - 8px);
-
+  padding: 0 12px;
+  padding-top: 8px;
   strong {
     font-size: 16px;
   }
@@ -145,6 +151,17 @@ button:hover {
   font-size: 11px;
   color: #666;
   opacity: 0.8;
+}
+
+.preview {
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  align-items: center;
+  /* vertical-align: top; */
+  color: #555;
 }
 
 .desktop-wrapper {
@@ -177,7 +194,6 @@ button:hover {
   margin-right: 6px;
   border-radius: 50%;
   vertical-align: middle;
-  
 }
 
 .status-dot.online {
@@ -187,7 +203,6 @@ button:hover {
 .status-dot.offline {
   background-color: #bbb;
 }
-
 
 .msg-time {
   font-size: 10px;

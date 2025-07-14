@@ -322,6 +322,10 @@ async function initChat() {
     const isRelevant =
       from === selectedUsername ||
       (from === myUsername && to === selectedUsername);
+
+      console.log('isRelevant', isRelevant);
+      
+
     if (isRelevant) {
       const div = document.createElement("div");
       div.className = "msg";

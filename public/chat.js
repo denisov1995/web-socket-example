@@ -128,7 +128,7 @@ async function loadChatHistory(withUsername) {
     const chatDiv = document.getElementById("chat");
     chatDiv.innerHTML = ""; // ✅ Очищаем старые сообщения
 
-    messages.forEach(({ from, avatar, text, image }) => {
+    messages.forEach(({ from, avatar, text, image, timestamp }) => {
       const div = document.createElement("div");
       div.className = "msg";
       if (from === myUsername) div.classList.add("you");
@@ -142,24 +142,34 @@ async function loadChatHistory(withUsername) {
 
       const authorLabel = from === myUsername ? "Вы" : from;
 
-      // ✅ Показываем текст, если он есть
+      // Текст
       if (text) {
         div.appendChild(document.createTextNode(`${authorLabel}: ${text}`));
       }
 
-      // ✅ Показываем изображение, если оно есть
+      // Изображение
       if (image) {
-        // Добавим подпись, если нет текста
         if (!text) {
           div.appendChild(document.createTextNode(`${authorLabel}: `));
         }
-
         const img = document.createElement("img");
         img.src = image;
         img.style.maxWidth = "200px";
         img.style.borderRadius = "6px";
         img.style.marginTop = "6px";
         div.appendChild(img);
+      }
+
+      // ✅ Время
+      if (timestamp) {
+        const timeDiv = document.createElement("div");
+        const dt = new Date(timestamp);
+        const hours = String(dt.getHours()).padStart(2, "0");
+        const minutes = String(dt.getMinutes()).padStart(2, "0");
+        const formatted = `${hours}:${minutes}`;
+        timeDiv.className = "msg-time";
+        timeDiv.innerText = formatted;
+        div.appendChild(timeDiv);
       }
 
       chatDiv.appendChild(div);

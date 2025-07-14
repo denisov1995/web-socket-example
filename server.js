@@ -1,12 +1,12 @@
 const express = require("express");
 const http = require("http");
 const path = require("path");
-const fs = require("fs-extra");
 const cookieParser = require("cookie-parser");
 const cookie = require("cookie");
 const { Server } = require("socket.io");
+const sqlite3 = require("sqlite3").verbose();
+const { open } = require("sqlite");
 
-const messages = []; // ← хранит историю
 const MAX_HISTORY = 50;
 
 const app = express();
@@ -19,13 +19,51 @@ const io = new Server(server, {
   },
 });
 
-const USERS_FILE = path.join(__dirname, "users.json");
 const PORT = process.env.PORT || 3000;
-const MESSAGES_FILE = path.join(__dirname, "messages.json");
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json({ limit: "2mb" }));
 app.use(cookieParser());
+
+// Инициализация базы данных
+async function initializeDB() {
+  const db = await open({
+    filename: path.join(__dirname, "chat.db"),
+    driver: sqlite3.Database,
+  });
+
+  // Создание таблиц, если они не существуют
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE,
+      password TEXT,
+      avatar TEXT
+    );
+    
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender TEXT,
+      receiver TEXT,
+      text TEXT,
+      image TEXT,
+      is_read BOOLEAN DEFAULT 0,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      avatar TEXT
+    );
+  `);
+
+  return db;
+}
+
+// Инициализация DB при старте
+let db;
+initializeDB().then((database) => {
+  db = database;
+  server.listen(PORT, () => {
+    console.log(`✅ Сервер запущен: http://localhost:${PORT}`);
+  });
+});
 
 // 📦 Регистрация
 app.post("/api/register", async (req, res) => {
@@ -35,107 +73,128 @@ app.post("/api/register", async (req, res) => {
     return res.status(400).json({ error: "Все поля обязательны" });
   }
 
-  const users = await fs.readJson(USERS_FILE).catch(() => []);
+  try {
+    // Проверяем существование пользователя
+    const existingUser = await db.get(
+      "SELECT username FROM users WHERE username = ?",
+      [username]
+    );
 
-  if (users.find((u) => u.username === username)) {
-    return res.status(409).json({ error: "Пользователь уже существует" });
+    if (existingUser) {
+      return res.status(409).json({ error: "Пользователь уже существует" });
+    }
+
+    // Сохраняем нового пользователя
+    await db.run(
+      "INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)",
+      [username, password, avatar]
+    );
+
+    // Устанавливаем cookie
+    const profile = { username };
+    res.cookie("profile", JSON.stringify(profile), {
+      maxAge: 86400000,
+      httpOnly: false,
+      secure: false,
+      sameSite: "lax",
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Ошибка регистрации:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
-
-  // ✅ Сохраняем нового пользователя
-  users.push({ username, password, avatar });
-  await fs.writeJson(USERS_FILE, users);
-
-  // ✅ Устанавливаем cookie только после успешной регистрации
-  const profile = { username };
-
-  res.cookie("profile", JSON.stringify(profile), {
-    maxAge: 86400000, // 1 день
-    httpOnly: false,
-    secure: false, // можно изменить на true при HTTPS
-    sameSite: "lax",
-  });
-
-  res.json({ success: true });
 });
 
 // 🔑 Логин
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
-  const users = await fs.readJson(USERS_FILE).catch(() => []);
-  const user = users.find(
-    (u) => u.username === username && u.password === password
-  );
-  if (!user) return res.status(401).json({ error: "Неверные данные" });
-
-  res.cookie(
-    "profile",
-    JSON.stringify({ username: user.username}),
-    {
-      maxAge: 86400000,
-      httpOnly: false,
-      secure: false,
-      sameSite: "lax",
+  
+  try {
+    const user = await db.get(
+      "SELECT username FROM users WHERE username = ? AND password = ?",
+      [username, password]
+    );
+    
+    if (!user) {
+      return res.status(401).json({ error: "Неверные данные" });
     }
-  );
 
-  res.json({ success: true });
+    res.cookie(
+      "profile",
+      JSON.stringify({ username: user.username }),
+      {
+        maxAge: 86400000,
+        httpOnly: false,
+        secure: false,
+        sameSite: "lax",
+      }
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Ошибка входа:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
 });
 
 app.post("/api/mark-read", async (req, res) => {
   const { from, to } = req.body;
-  const messages = await fs.readJson(MESSAGES_FILE).catch(() => []);
-  let changed = false;
-
-  messages.forEach((msg) => {
-    if (msg.from === from && msg.to === to && !msg.isRead) {
-      msg.isRead = true;
-      changed = true;
-    }
-  });
-
-  if (changed) await fs.writeJson(MESSAGES_FILE, messages);
-  res.json({ success: true });
+  
+  try {
+    await db.run(
+      "UPDATE messages SET is_read = 1 WHERE sender = ? AND receiver = ? AND is_read = 0",
+      [from, to]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Ошибка обновления статуса прочтения:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
 });
 
 app.get("/api/unread/:username", async (req, res) => {
   const currentUser = req.params.username;
-  const messages = await fs.readJson(MESSAGES_FILE).catch(() => []);
-  const senders = new Set();
-
-  messages.forEach((msg) => {
-    if (msg.to === currentUser && !msg.isRead) {
-      senders.add(msg.from);
-    }
-  });
-
-  res.json([...senders]);
+  
+  try {
+    const senders = await db.all(
+      `SELECT DISTINCT sender 
+       FROM messages 
+       WHERE receiver = ? AND is_read = 0`,
+      [currentUser]
+    );
+    
+    res.json(senders.map(s => s.sender));
+  } catch (err) {
+    console.error("Ошибка получения непрочитанных:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
 });
 
 app.get("/api/messages", async (req, res) => {
   const { user1, user2 } = req.query;
+  
   try {
-    const allMessages = await fs.readJson(MESSAGES_FILE).catch(() => []);
-    const conversation = allMessages.filter(
-      (msg) =>
-        (msg.from === user1 && msg.to === user2) ||
-        (msg.from === user2 && msg.to === user1)
+    const messages = await db.all(
+      `SELECT * FROM messages 
+       WHERE (sender = ? AND receiver = ?) 
+          OR (sender = ? AND receiver = ?)
+       ORDER BY timestamp DESC
+       LIMIT ?`,
+      [user1, user2, user2, user1, MAX_HISTORY]
     );
-    res.json(conversation.slice(-MAX_HISTORY));
+    
+    res.json(messages.reverse());
   } catch (err) {
+    console.error("Ошибка загрузки истории:", err);
     res.status(500).json({ error: "Ошибка загрузки истории" });
   }
-});
-
-server.listen(PORT, () => {
-  console.log(`✅ Сервер запущен: http://localhost:${PORT}`);
 });
 
 // 📋 Отправка списка пользователей
 const broadcastUsers = async () => {
   try {
-    const allUsers = await fs.readJson(USERS_FILE).catch(() => []);
-    const allMessages = await fs.readJson(MESSAGES_FILE).catch(() => []);
-
+    const allUsers = await db.all("SELECT username, avatar FROM users");
     const connectedUsernames = new Set();
 
     for (let [, socket] of io.of("/").sockets) {
@@ -145,34 +204,37 @@ const broadcastUsers = async () => {
     }
 
     for (let [, socket] of io.of("/").sockets) {
-      const userList = allUsers
-        .filter((u) => u.username !== socket.username)
-        .map((u) => {
-          const last = allMessages
-            .filter(
-              (msg) =>
-                (msg.from === u.username && msg.to === socket.username) ||
-                (msg.from === socket.username && msg.to === u.username)
-            )
-            .slice(-1)[0];
+      const userList = await Promise.all(
+        allUsers
+          .filter((u) => u.username !== socket.username)
+          .map(async (u) => {
+            const lastMessage = await db.get(
+              `SELECT text, sender 
+               FROM messages 
+               WHERE (sender = ? AND receiver = ?) 
+                  OR (sender = ? AND receiver = ?)
+               ORDER BY timestamp DESC 
+               LIMIT 1`,
+              [u.username, socket.username, socket.username, u.username]
+            );
 
-          return {
-            username: u.username,
-            avatar: u.avatar,
-            online: connectedUsernames.has(u.username),
-            lastText: last?.text || "",
-            lastFrom: last?.from || null,
-          };
-        });
+            return {
+              username: u.username,
+              avatar: u.avatar,
+              online: connectedUsernames.has(u.username),
+              lastText: lastMessage?.text || "",
+              lastFrom: lastMessage?.sender || null,
+            };
+          })
+      );
 
-      socket.emit("users", userList); // каждому отправляем свой список
+      socket.emit("users", userList);
     }
   } catch (err) {
     console.error("❌ Ошибка при сборе списка пользователей:", err.message);
   }
 };
 
-// ⚡ Socket.IO
 // ⚡ Socket.IO
 io.on("connection", async (socket) => {
   const rawCookies = socket.handshake.headers.cookie || "";
@@ -190,31 +252,45 @@ io.on("connection", async (socket) => {
     return;
   }
 
-  socket.username = profile.username;
+  // Получаем данные пользователя из БД
+  const user = await db.get(
+    "SELECT username, avatar FROM users WHERE username = ?",
+    [profile.username]
+  );
 
-  // ✅ Загрузка аватара из users.json
-  const users = await fs.readJson(USERS_FILE).catch(() => []);
-  const currentUser = users.find((u) => u.username === profile.username);
-  
+  if (!user) {
+    socket.disconnect();
+    return;
+  }
 
-  socket.username = profile.username;
-  socket.avatar = currentUser?.avatar || null;
+  socket.username = user.username;
+  socket.avatar = user.avatar;
 
   // Загружаем историю сообщений для этого пользователя
   try {
-    const allMessages = await fs.readJson(MESSAGES_FILE).catch(() => []);
-    const userMessages = allMessages.filter(
-      (msg) => msg.from === socket.username || msg.to === socket.id
+    const userMessages = await db.all(
+      `SELECT * FROM messages 
+       WHERE sender = ? OR receiver = ?
+       ORDER BY timestamp DESC
+       LIMIT ?`,
+      [socket.username, socket.username, MAX_HISTORY]
     );
 
-    // Отправляем историю только что подключившемуся пользователю
-    socket.emit("message history", userMessages.slice(-MAX_HISTORY));
+    socket.emit("message history", userMessages.reverse());
 
-    const publicHistory = allMessages.filter((msg) => msg.to === "public");
-    socket.emit("public history", publicHistory.slice(-MAX_HISTORY));
+    const publicHistory = await db.all(
+      `SELECT * FROM messages 
+       WHERE receiver = 'public'
+       ORDER BY timestamp DESC
+       LIMIT ?`,
+      [MAX_HISTORY]
+    );
+
+    socket.emit("public history", publicHistory.reverse());
   } catch (err) {
     console.error("Ошибка загрузки истории:", err);
   }
+
   socket.on("request users update", () => {
     broadcastUsers();
   });
@@ -239,7 +315,6 @@ io.on("connection", async (socket) => {
   socket.on("stop typing", ({ to }) => {
     for (let [id, s] of io.of("/").sockets) {
       if (s.username === to) {
-
         io.to(id).emit("stop typing", { from: socket.username });
         break;
       }
@@ -248,76 +323,111 @@ io.on("connection", async (socket) => {
 
   // 💬 Приватные сообщения
   socket.on("private message", async ({ content, toUsername }) => {
-
-
     const message = {
-      from: socket.username,
-      to: toUsername,
+      sender: socket.username,
+      receiver: toUsername,
       text: content,
       avatar: socket.avatar,
-      timestamp: new Date().toISOString(),
-      isRead: false, // ⬅️ новый флаг
+      is_read: false,
     };
 
     try {
-      const messages = await fs.readJson(MESSAGES_FILE).catch(() => []);
-      messages.push(message);
-      await fs.writeJson(MESSAGES_FILE, messages.slice(-MAX_HISTORY));
-    } catch (err) {
-      console.error("Ошибка сохранения:", err);
-    }
+      await db.run(
+        `INSERT INTO messages (sender, receiver, text, avatar, is_read)
+         VALUES (?, ?, ?, ?, ?)`,
+        [message.sender, message.receiver, message.text, message.avatar, message.is_read]
+      );
 
-    // 💬 Отправить получателю, если он онлайн
-    for (let [id, s] of io.of("/").sockets) {
-      if (s.username === toUsername) {
-        io.to(id).emit("private message", message);
-        break;
+      // Отправить получателю, если он онлайн
+      for (let [id, s] of io.of("/").sockets) {
+        if (s.username === toUsername) {
+          io.to(id).emit("private message", {
+            ...message,
+            from: message.sender,
+            to: message.receiver,
+            isRead: message.is_read,
+          });
+          break;
+        }
       }
-    }
 
-    // ✉️ Отправить самому себе подтверждение
-    socket.emit("private message", message);
+      // Отправить самому себе подтверждение
+      socket.emit("private message", {
+        ...message,
+        from: message.sender,
+        to: message.receiver,
+        isRead: message.is_read,
+      });
+    } catch (err) {
+      console.error("Ошибка сохранения сообщения:", err);
+    }
   });
 
   socket.on("public message", async (content) => {
     const message = {
-      from: socket.username,
+      sender: socket.username,
+      receiver: "public",
       text: content,
       avatar: socket.avatar,
-      timestamp: new Date().toISOString(),
     };
 
-    // Сохраняем в общий файл истории
-    const allMessages = await fs.readJson(MESSAGES_FILE).catch(() => []);
-    allMessages.push({ ...message, to: "public" }); // → метка "public"
-    await fs.writeJson(MESSAGES_FILE, allMessages.slice(-MAX_HISTORY));
+    try {
+      await db.run(
+        `INSERT INTO messages (sender, receiver, text, avatar)
+         VALUES (?, ?, ?, ?)`,
+        [message.sender, message.receiver, message.text, message.avatar]
+      );
 
-    io.emit("public message", message); // Отправляем всем
+      io.emit("public message", {
+        from: message.sender,
+        text: message.text,
+        avatar: message.avatar,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("Ошибка сохранения публичного сообщения:", err);
+    }
   });
 
   socket.on("private image", async ({ toUsername, image }) => {
-
     const message = {
-      from: socket.username,
-      to: toUsername,
+      sender: socket.username,
+      receiver: toUsername,
+      image,
       avatar: socket.avatar,
-      image, // Base64
-      timestamp: new Date().toISOString(),
-      isRead: false,
+      is_read: false,
     };
 
-    const messages = await fs.readJson(MESSAGES_FILE).catch(() => []);
-    messages.push(message);
-    await fs.writeJson(MESSAGES_FILE, messages.slice(-MAX_HISTORY));
+    try {
+      await db.run(
+        `INSERT INTO messages (sender, receiver, image, avatar, is_read)
+         VALUES (?, ?, ?, ?, ?)`,
+        [message.sender, message.receiver, message.image, message.avatar, message.is_read]
+      );
 
-    // Отправка получателю и себе
-    for (let [id, s] of io.of("/").sockets) {
-      if (s.username === toUsername) {
-        io.to(id).emit("private image", message);
+      // Отправка получателю и себе
+      for (let [id, s] of io.of("/").sockets) {
+        if (s.username === toUsername) {
+          io.to(id).emit("private image", {
+            ...message,
+            from: message.sender,
+            to: message.receiver,
+            isRead: message.is_read,
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
-    }
 
-    socket.emit("private image", message);
+      socket.emit("private image", {
+        ...message,
+        from: message.sender,
+        to: message.receiver,
+        isRead: message.is_read,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("Ошибка сохранения изображения:", err);
+    }
   });
 
   socket.on("disconnect", () => {

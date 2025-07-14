@@ -4,8 +4,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const saved = localStorage.getItem("username");
 
   if (saved) {
-    // ⬇️ У тебя уже есть cookie с профилем (задана при login/register)
-    // Просто запускаем initChat
     await initChat();
   }
 });
@@ -24,7 +22,6 @@ async function register() {
   const avatarInput = document.getElementById("regAvatar");
   const avatarFile = avatarInput.files[0];
 
-  // Превращаем файл в Base64
   function toBase64(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -115,20 +112,19 @@ async function loadChatHistory(withUsername) {
     const messages = await response.json();
     const chatDivWrap = document.querySelector(".chat-wrapper");
 
-    // ✅ Проверка — существует ли div заголовка
     let divTitle = chatDivWrap.querySelector(".chat-wrapper-title");
     if (!divTitle) {
       divTitle = document.createElement("div");
       divTitle.className = "chat-wrapper-title";
-      chatDivWrap.prepend(divTitle); // добавляем только один раз
+      chatDivWrap.prepend(divTitle);
     }
 
     divTitle.innerHTML = `<b>Чат с ${withUsername}</b><br/>`;
 
     const chatDiv = document.getElementById("chat");
-    chatDiv.innerHTML = ""; // ✅ Очищаем старые сообщения
+    chatDiv.innerHTML = "";
 
-    messages.forEach(({ from, avatar, text, image, timestamp }) => {
+    messages.forEach(({ sender: from, avatar, text, image, timestamp }) => {
       const div = document.createElement("div");
       div.className = "msg";
       if (from === myUsername) div.classList.add("you");
@@ -142,12 +138,10 @@ async function loadChatHistory(withUsername) {
 
       const authorLabel = from === myUsername ? "Вы" : from;
 
-      // Текст
       if (text) {
         div.appendChild(document.createTextNode(`${authorLabel}: ${text}`));
       }
 
-      // Изображение
       if (image) {
         if (!text) {
           div.appendChild(document.createTextNode(`${authorLabel}: `));
@@ -160,7 +154,6 @@ async function loadChatHistory(withUsername) {
         div.appendChild(img);
       }
 
-      // ✅ Время
       if (timestamp) {
         const timeDiv = document.createElement("div");
         const dt = new Date(timestamp);
@@ -175,12 +168,10 @@ async function loadChatHistory(withUsername) {
       chatDiv.appendChild(div);
     });
 
-    // ✅ прокрутка вниз и очистка флага
     chatDiv.scrollTop = chatDiv.scrollHeight;
     unreadMessages = unreadMessages.filter((name) => name !== withUsername);
     renderUsers();
 
-    // ✅ серверное обновление isRead
     await fetch("/api/mark-read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -211,12 +202,10 @@ function renderUsersList(users) {
         users.appendChild(img);
       }
 
-      // ✅ Онлайн/оффлайн индикатор
       const statusDot = user.online
         ? `<span class="status-dot online" title="online"></span>`
         : `<span class="status-dot offline" title="offline"></span>`;
 
-      // ✅ Автор последнего сообщения: "Вы:" или имя
       const previewAuthor =
         user.lastFrom === myUsername
           ? "<span style='color:#333;'>Вы: </span>"
@@ -224,22 +213,18 @@ function renderUsersList(users) {
           ? `<span style='color:#555;'>${user.lastFrom}: </span>`
           : "";
 
-      // ✅ Сам текст превью
       const previewText = user.lastText
         ? `${previewAuthor}${user.lastText}`
         : "";
 
-      // ✅ Маркер непрочитанного
       const marker = hasUnread ? " ●" : "";
 
-      // ✅ Сборка HTML
       btn.innerHTML = `
         ${statusDot}
         <strong>${user.username}</strong>${marker}<br>
         <span class="preview">${previewText}</span>
       `;
 
-      // ✅ Обработчик клика
       users.onclick = async () => {
         selectedUsername = user.username;
         document.getElementById("sendBtn").disabled = false;
@@ -254,29 +239,24 @@ function renderUsersList(users) {
 }
 
 function renderUsers() {
-  // просто перерисовываем текущий список
   if (socket && socket.listeners("users").length > 0) {
-    socket.emit("request users update"); // альтернативный способ
+    socket.emit("request users update");
   }
 }
 
 async function initChat() {
-  // ⬇️ Показываем чат, скрываем форму авторизации
   document.getElementById("auth").style.display = "none";
   document.getElementById("chatUI").style.display = "block";
 
   socket = io({ withCredentials: true });
 
-  // ✅ Устанавливаем имя пользователя
   myUsername = localStorage.getItem("username");
 
-  // ✅ Загружаем список тех, от кого есть непрочитанные
   const unreadResponse = await fetch(`/api/unread/${myUsername}`);
   unreadMessages = await unreadResponse.json();
 
   renderUsers();
 
-  // ✅ Получаем список пользователей от сервера
   socket.on("users", (users) => {
     renderUsersList(users);
   });
@@ -285,21 +265,18 @@ async function initChat() {
   Select a chat to start messaging
 </div>`;
 
-  // ✅ Событие «печатает...»
   document.getElementById("msgInput").addEventListener("input", () => {
     if (selectedUsername) {
       socket.emit("typing", { to: selectedUsername });
     }
   });
 
-  // ✅ Остановка «печатает...»
   document.getElementById("msgInput").addEventListener("blur", () => {
     if (selectedUsername) {
       socket.emit("stop typing", { to: selectedUsername });
     }
   });
 
-  // ✅ Отображение индикатора «печатает...»
   socket.on("typing", ({ from }) => {
     if (selectedUsername === from && !typingInterval) {
       const indicator = document.getElementById("typingIndicator");
@@ -317,13 +294,12 @@ async function initChat() {
     if (selectedUsername === from) {
       const indicator = document.getElementById("typingIndicator");
       indicator.textContent = "";
-      clearInterval(typingInterval); // ✅ Останавливаем бегущие точки
+      clearInterval(typingInterval);
       typingInterval = null;
     }
   });
 
-  // ✅ Общие сообщения
-  socket.on("public message", ({ from, avatar, text }) => {
+  socket.on("public message", ({ sender: from, avatar, text }) => {
     const div = document.createElement("div");
     div.className = "msg";
     if (from === myUsername) div.classList.add("you");
@@ -340,8 +316,9 @@ async function initChat() {
     document.getElementById("publicChat").appendChild(div);
   });
 
-  // ✅ Приватные сообщения
-  socket.on("private message", ({ from, to, avatar, text }) => {
+  socket.on("private message", ({ sender: from, receiver: to, avatar, text }) => {
+    console.log('receiver', to);
+    
     const isRelevant =
       from === selectedUsername ||
       (from === myUsername && to === selectedUsername);
@@ -363,13 +340,12 @@ async function initChat() {
       document.getElementById("chat").scrollTop =
         document.getElementById("chat").scrollHeight;
     } else if (to === myUsername) {
-      // ✅ Добавляем в список непрочитанных, если чат не открыт
       if (!unreadMessages.includes(from)) unreadMessages.push(from);
       renderUsers();
     }
   });
 
-  socket.on("private image", ({ from, to, image, avatar }) => {
+  socket.on("private image", ({ sender: from, receiver: to, image, avatar }) => {
     const isRelevant =
       from === selectedUsername ||
       (from === myUsername && to === selectedUsername);
@@ -390,7 +366,6 @@ async function initChat() {
     const label = from === myUsername ? "Вы" : from;
     div.appendChild(document.createTextNode(`${label}: `));
 
-    // ✅ Добавляем изображение
     const img = document.createElement("img");
     img.src = image;
     img.style.maxWidth = "200px";
@@ -403,10 +378,9 @@ async function initChat() {
     chatDiv.scrollTop = chatDiv.scrollHeight;
   });
 
-  // ✅ История общего чата
   socket.on("public history", (messages) => {
     const chatDiv = document.getElementById("publicChat");
-    messages.forEach(({ from, avatar, text }) => {
+    messages.forEach(({ sender: from, avatar, text }) => {
       const div = document.createElement("div");
       div.className = "msg";
       if (from === myUsername) div.classList.add("you");

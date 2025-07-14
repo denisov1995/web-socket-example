@@ -192,14 +192,13 @@ function renderUsersList(users) {
     if (user.username !== myUsername) {
       const hasUnread = unreadMessages.includes(user.username);
       const btn = document.createElement("button");
-      const users = document.getElementById("users");
+      const users = document.createElement("div");
 
       if (user.avatar) {
-
         const img = document.createElement("img");
         img.src = user.avatar;
         img.className = "avatar";
-        usersDiv.appendChild(img);
+        users.appendChild(img);
       }
 
       // ✅ Онлайн/оффлайн индикатор
@@ -238,8 +237,8 @@ function renderUsersList(users) {
         document.getElementById("sendBtn").style.display = "flex";
         await loadChatHistory(user.username);
       };
-
-      usersDiv.appendChild(btn);
+      users.appendChild(btn);
+      usersDiv.appendChild(users);
     }
   });
 }
@@ -434,7 +433,6 @@ function togglePublicChat() {
   const header = document.querySelector("#publicChatContainer h3");
 
   if (content.style.display === "none") {
-
     content.style.display = "block";
     header.textContent = "Общий чат ▾";
   } else {

@@ -99,7 +99,8 @@ button:hover {
 #users {
   display: flex;
   align-items: center;
-  height: 88px;
+  flex-direction: column;
+
   padding-left: 4px;
   cursor: pointer;
 
@@ -107,6 +108,13 @@ button:hover {
     width: 76px;
     height: 76px;
   }
+}
+
+#users > div {
+  display: flex;
+  align-items: center;
+  height: 80px;
+  margin-bottom: 8px;
 }
 
 #users button {
@@ -117,6 +125,7 @@ button:hover {
   display: flex;
   flex-direction: column;
   align-items: baseline;
+  height: calc(100% - 8px);
 
   strong {
     font-size: 16px;
@@ -127,10 +136,9 @@ button:hover {
   }
 }
 
-#users:hover {
+#users > div:hover {
   background: #f0f4f7;
   border-radius: 8px;
-  
 }
 
 .preview {
@@ -165,10 +173,11 @@ button:hover {
 .status-dot {
   display: inline-block;
   width: 9px;
-  height: 9px;
+  min-height: 9px;
   margin-right: 6px;
   border-radius: 50%;
   vertical-align: middle;
+  
 }
 
 .status-dot.online {

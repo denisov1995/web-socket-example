@@ -2,7 +2,6 @@
 
 window.addEventListener("DOMContentLoaded", async () => {
   const saved = localStorage.getItem("username");
-  console.log();
 
   if (saved) {
     // ⬇️ У тебя уже есть cookie с профилем (задана при login/register)
@@ -22,12 +21,27 @@ async function register() {
   const username = document.getElementById("regName").value.trim();
   const password = document.getElementById("regPass").value.trim();
 
+  const avatarInput = document.getElementById("regAvatar");
+  const avatarFile = avatarInput.files[0];
+
+  // Превращаем файл в Base64
+  function toBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const avatar = avatarFile ? await toBase64(avatarFile) : null;
+
   try {
     const response = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, avatar }),
     });
 
     if (!response.ok) {
@@ -114,20 +128,40 @@ async function loadChatHistory(withUsername) {
     const chatDiv = document.getElementById("chat");
     chatDiv.innerHTML = ""; // ✅ Очищаем старые сообщения
 
-    messages.forEach(({ from, avatar, text }) => {
+    messages.forEach(({ from, avatar, text, image }) => {
       const div = document.createElement("div");
       div.className = "msg";
       if (from === myUsername) div.classList.add("you");
 
       if (avatar) {
-        const img = document.createElement("img");
-        img.src = avatar;
-        img.className = "avatar";
-        div.appendChild(img);
+        const imgAvatar = document.createElement("img");
+        imgAvatar.src = avatar;
+        imgAvatar.className = "avatar";
+        div.appendChild(imgAvatar);
       }
 
       const authorLabel = from === myUsername ? "Вы" : from;
-      div.appendChild(document.createTextNode(`${authorLabel}: ${text}`));
+
+      // ✅ Показываем текст, если он есть
+      if (text) {
+        div.appendChild(document.createTextNode(`${authorLabel}: ${text}`));
+      }
+
+      // ✅ Показываем изображение, если оно есть
+      if (image) {
+        // Добавим подпись, если нет текста
+        if (!text) {
+          div.appendChild(document.createTextNode(`${authorLabel}: `));
+        }
+
+        const img = document.createElement("img");
+        img.src = image;
+        img.style.maxWidth = "200px";
+        img.style.borderRadius = "6px";
+        img.style.marginTop = "6px";
+        div.appendChild(img);
+      }
+
       chatDiv.appendChild(div);
     });
 
@@ -152,26 +186,52 @@ async function loadChatHistory(withUsername) {
 
 function renderUsersList(users) {
   const usersDiv = document.getElementById("users");
-  usersDiv.innerHTML = ""; // ✅ очищаем перед повторной отрисовкой
-  console.log("users", users);
+  usersDiv.innerHTML = "";
 
   users.forEach((user) => {
     if (user.username !== myUsername) {
       const hasUnread = unreadMessages.includes(user.username);
       const btn = document.createElement("button");
-      console.log(" user.lastFrom === myUsername", user.lastFrom, myUsername);
+      const users = document.getElementById("users");
 
+      if (user.avatar) {
+
+        const img = document.createElement("img");
+        img.src = user.avatar;
+        img.className = "avatar";
+        usersDiv.appendChild(img);
+      }
+
+      // ✅ Онлайн/оффлайн индикатор
+      const statusDot = user.online
+        ? `<span class="status-dot online" title="online"></span>`
+        : `<span class="status-dot offline" title="offline"></span>`;
+
+      // ✅ Автор последнего сообщения: "Вы:" или имя
       const previewAuthor =
         user.lastFrom === myUsername
           ? "<span style='color:#333;'>Вы: </span>"
+          : user.lastFrom
+          ? `<span style='color:#555;'>${user.lastFrom}: </span>`
           : "";
 
-      const text = user.lastText ? `${previewAuthor}${user.lastText}` : "";
+      // ✅ Сам текст превью
+      const previewText = user.lastText
+        ? `${previewAuthor}${user.lastText}`
+        : "";
 
+      // ✅ Маркер непрочитанного
       const marker = hasUnread ? " ●" : "";
-      btn.innerHTML = `<strong>${user.username}</strong>${marker}<br><span class="preview">${text}</span>`;
 
-      btn.onclick = async () => {
+      // ✅ Сборка HTML
+      btn.innerHTML = `
+        ${statusDot}
+        <strong>${user.username}</strong>${marker}<br>
+        <span class="preview">${previewText}</span>
+      `;
+
+      // ✅ Обработчик клика
+      users.onclick = async () => {
         selectedUsername = user.username;
         document.getElementById("sendBtn").disabled = false;
         document.getElementById("msgInput").style.display = "block";
@@ -200,7 +260,6 @@ async function initChat() {
 
   // ✅ Устанавливаем имя пользователя
   myUsername = localStorage.getItem("username");
-  console.log("myUsername", myUsername);
 
   // ✅ Загружаем список тех, от кого есть непрочитанные
   const unreadResponse = await fetch(`/api/unread/${myUsername}`);
@@ -227,7 +286,6 @@ async function initChat() {
   // ✅ Остановка «печатает...»
   document.getElementById("msgInput").addEventListener("blur", () => {
     if (selectedUsername) {
-      console.log(6555, selectedUsername);
       socket.emit("stop typing", { to: selectedUsername });
     }
   });
@@ -278,7 +336,6 @@ async function initChat() {
     const isRelevant =
       from === selectedUsername ||
       (from === myUsername && to === selectedUsername);
-
     if (isRelevant) {
       const div = document.createElement("div");
       div.className = "msg";
@@ -301,6 +358,40 @@ async function initChat() {
       if (!unreadMessages.includes(from)) unreadMessages.push(from);
       renderUsers();
     }
+  });
+
+  socket.on("private image", ({ from, to, image, avatar }) => {
+    const isRelevant =
+      from === selectedUsername ||
+      (from === myUsername && to === selectedUsername);
+
+    if (!isRelevant) return;
+
+    const div = document.createElement("div");
+    div.className = "msg";
+    if (from === myUsername) div.classList.add("you");
+
+    if (avatar) {
+      const imgAvatar = document.createElement("img");
+      imgAvatar.src = avatar;
+      imgAvatar.className = "avatar";
+      div.appendChild(imgAvatar);
+    }
+
+    const label = from === myUsername ? "Вы" : from;
+    div.appendChild(document.createTextNode(`${label}: `));
+
+    // ✅ Добавляем изображение
+    const img = document.createElement("img");
+    img.src = image;
+    img.style.maxWidth = "200px";
+    img.style.borderRadius = "6px";
+    img.style.marginTop = "6px";
+    div.appendChild(img);
+
+    const chatDiv = document.getElementById("chat");
+    chatDiv.appendChild(div);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
   });
 
   // ✅ История общего чата
@@ -343,7 +434,6 @@ function togglePublicChat() {
   const header = document.querySelector("#publicChatContainer h3");
 
   if (content.style.display === "none") {
-    console.log("yes");
 
     content.style.display = "block";
     header.textContent = "Общий чат ▾";
@@ -360,9 +450,25 @@ function togglePrivateChat() {
   if (content.style.display === "none") {
     content.style.display = "flex";
     header.textContent = "Приватный чат ▾";
-    console.log("header.textContent ", header.textContent);
   } else {
     content.style.display = "none";
     header.textContent = "Приватный чат ▸";
   }
+}
+
+async function sendImage() {
+  const fileInput = document.getElementById("imgInput");
+  const file = fileInput.files[0];
+
+  if (!file || !selectedUsername) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const base64 = reader.result;
+    socket.emit("private image", {
+      toUsername: selectedUsername,
+      image: base64,
+    });
+  };
+  reader.readAsDataURL(file);
 }

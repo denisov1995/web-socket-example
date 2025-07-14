@@ -98,7 +98,15 @@ button:hover {
 
 #users {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  height: 88px;
+  padding-left: 4px;
+  cursor: pointer;
+
+  .avatar {
+    width: 76px;
+    height: 76px;
+  }
 }
 
 #users button {
@@ -119,8 +127,10 @@ button:hover {
   }
 }
 
-#users button:hover {
-  /* background: #1976d2; */
+#users:hover {
+  background: #f0f4f7;
+  border-radius: 8px;
+  
 }
 
 .preview {
@@ -150,4 +160,21 @@ button:hover {
 #privateChatContent,
 #publicChatContent {
   display: none;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.status-dot.online {
+  background-color: #3ccf60;
+}
+
+.status-dot.offline {
+  background-color: #bbb;
 }

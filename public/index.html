@@ -40,6 +40,9 @@
         <h3>Регистрация</h3>
         <input id="regName" placeholder="Имя" />
         <input id="regPass" type="password" placeholder="Пароль" />
+        <label>Аватар:</label>
+        <input type="file" id="regAvatar" accept="image/*" />
+
         <!-- <input id="regAvatar" type="file" /> -->
         <button onclick="register()">Зарегистрироваться</button>
       </div>
@@ -82,7 +85,12 @@
               style="font-style: italic; color: gray"
             ></div>
             <input id="msgInput" placeholder="Введите сообщение" />
-            <button disabled id="sendBtn" onclick="sendMessage()">Отправить</button>
+            <input type="file" id="imgInput" accept="image/*" />
+            <button onclick="sendImage()">📷 Отправить фото</button>
+
+            <button disabled id="sendBtn" onclick="sendMessage()">
+              Отправить
+            </button>
           </div>
         </div>
       </div>

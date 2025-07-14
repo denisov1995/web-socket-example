@@ -30,20 +30,28 @@ app.use(cookieParser());
 // 📦 Регистрация
 app.post("/api/register", async (req, res) => {
   const { username, password, avatar } = req.body;
-  if (!username || !password)
+
+  if (!username || !password) {
     return res.status(400).json({ error: "Все поля обязательны" });
+  }
 
   const users = await fs.readJson(USERS_FILE).catch(() => []);
-  if (users.find((u) => u.username === username))
-    return res.status(409).json({ error: "Пользователь уже существует" });
 
+  if (users.find((u) => u.username === username)) {
+    return res.status(409).json({ error: "Пользователь уже существует" });
+  }
+
+  // ✅ Сохраняем нового пользователя
   users.push({ username, password, avatar });
   await fs.writeJson(USERS_FILE, users);
 
-  res.cookie("profile", JSON.stringify({ username, avatar }), {
-    maxAge: 86400000,
+  // ✅ Устанавливаем cookie только после успешной регистрации
+  const profile = { username };
+
+  res.cookie("profile", JSON.stringify(profile), {
+    maxAge: 86400000, // 1 день
     httpOnly: false,
-    secure: false,
+    secure: false, // можно изменить на true при HTTPS
     sameSite: "lax",
   });
 
@@ -174,8 +182,7 @@ io.on("connection", async (socket) => {
   try {
     profile = parsedCookies.profile ? JSON.parse(parsedCookies.profile) : null;
   } catch (e) {
-    console.error("❌ Ошибка парсинга cookie:", e.message);
-    profile = null;
+    console.error("❌ Cookie парсинг:", e.message);
   }
 
   if (!profile?.username) {
@@ -184,7 +191,14 @@ io.on("connection", async (socket) => {
   }
 
   socket.username = profile.username;
-  socket.avatar = profile.avatar;
+
+  // ✅ Загрузка аватара из users.json
+  const users = await fs.readJson(USERS_FILE).catch(() => []);
+  const currentUser = users.find((u) => u.username === profile.username);
+  
+
+  socket.username = profile.username;
+  socket.avatar = currentUser?.avatar || null;
 
   // Загружаем историю сообщений для этого пользователя
   try {
@@ -223,13 +237,10 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("stop typing", ({ to }) => {
-    console.log("0000");
     for (let [id, s] of io.of("/").sockets) {
       if (s.username === to) {
-        console.log("data", s.username, to, id);
 
         io.to(id).emit("stop typing", { from: socket.username });
-        console.log(`✉️ stop typing отправлен пользователю ${to} → ${id}`);
         break;
       }
     }
@@ -237,9 +248,7 @@ io.on("connection", async (socket) => {
 
   // 💬 Приватные сообщения
   socket.on("private message", async ({ content, toUsername }) => {
-    console.log(
-      `💬 Сообщение от ${socket.username} → ${toUsername}: ${content}`
-    );
+
 
     const message = {
       from: socket.username,
@@ -284,6 +293,31 @@ io.on("connection", async (socket) => {
     await fs.writeJson(MESSAGES_FILE, allMessages.slice(-MAX_HISTORY));
 
     io.emit("public message", message); // Отправляем всем
+  });
+
+  socket.on("private image", async ({ toUsername, image }) => {
+
+    const message = {
+      from: socket.username,
+      to: toUsername,
+      avatar: socket.avatar,
+      image, // Base64
+      timestamp: new Date().toISOString(),
+      isRead: false,
+    };
+
+    const messages = await fs.readJson(MESSAGES_FILE).catch(() => []);
+    messages.push(message);
+    await fs.writeJson(MESSAGES_FILE, messages.slice(-MAX_HISTORY));
+
+    // Отправка получателю и себе
+    for (let [id, s] of io.of("/").sockets) {
+      if (s.username === toUsername) {
+        io.to(id).emit("private image", message);
+      }
+    }
+
+    socket.emit("private image", message);
   });
 
   socket.on("disconnect", () => {

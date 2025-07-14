@@ -69,7 +69,7 @@ app.post("/api/login", async (req, res) => {
 
   res.cookie(
     "profile",
-    JSON.stringify({ username: user.username, avatar: user.avatar }),
+    JSON.stringify({ username: user.username}),
     {
       maxAge: 86400000,
       httpOnly: false,

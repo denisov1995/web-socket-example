@@ -54,7 +54,7 @@ button:hover {
 }
 
 #chatUI {
-  max-width: 600px;
+  max-width: 1200px;
   margin: 30px auto;
   background: #fff;
   padding: 20px 30px;
@@ -70,6 +70,7 @@ button:hover {
   overflow-y: auto;
   background-color: #fdfdfd;
   margin-bottom: 12px;
+  min-height: 250px;
 }
 
 .msg {
@@ -95,11 +96,58 @@ button:hover {
   background-color: #ccc;
 }
 
+#users {
+  display: flex;
+  flex-direction: column;
+}
+
 #users button {
   margin: 4px;
-  background: #2196f3;
+  background: #ece9e6;
+  color: #000;
+  min-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: baseline;
+
+  strong {
+    font-size: 16px;
+  }
+
+  .preview {
+    font-size: 14px;
+  }
 }
 
 #users button:hover {
-  background: #1976d2;
+  /* background: #1976d2; */
+}
+
+.preview {
+  font-size: 11px;
+  color: #666;
+  opacity: 0.8;
+}
+
+.desktop-wrapper {
+  display: block;
+}
+
+#sendBtn {
+  margin-left: auto;
+  display: flex;
+}
+
+.chat-wrapper {
+  width: 100%;
+}
+
+#msgInput,
+#sendBtn {
+  display: none;
+}
+
+#privateChatContent,
+#publicChatContent {
+  display: none;
 }

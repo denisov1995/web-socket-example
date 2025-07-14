@@ -73,6 +73,36 @@ app.post("/api/login", async (req, res) => {
   res.json({ success: true });
 });
 
+app.post("/api/mark-read", async (req, res) => {
+  const { from, to } = req.body;
+  const messages = await fs.readJson(MESSAGES_FILE).catch(() => []);
+  let changed = false;
+
+  messages.forEach((msg) => {
+    if (msg.from === from && msg.to === to && !msg.isRead) {
+      msg.isRead = true;
+      changed = true;
+    }
+  });
+
+  if (changed) await fs.writeJson(MESSAGES_FILE, messages);
+  res.json({ success: true });
+});
+
+app.get("/api/unread/:username", async (req, res) => {
+  const currentUser = req.params.username;
+  const messages = await fs.readJson(MESSAGES_FILE).catch(() => []);
+  const senders = new Set();
+
+  messages.forEach((msg) => {
+    if (msg.to === currentUser && !msg.isRead) {
+      senders.add(msg.from);
+    }
+  });
+
+  res.json([...senders]);
+});
+
 app.get("/api/messages", async (req, res) => {
   const { user1, user2 } = req.query;
   try {
@@ -96,6 +126,8 @@ server.listen(PORT, () => {
 const broadcastUsers = async () => {
   try {
     const allUsers = await fs.readJson(USERS_FILE).catch(() => []);
+    const allMessages = await fs.readJson(MESSAGES_FILE).catch(() => []);
+
     const connectedUsernames = new Set();
 
     for (let [, socket] of io.of("/").sockets) {
@@ -106,12 +138,24 @@ const broadcastUsers = async () => {
 
     for (let [, socket] of io.of("/").sockets) {
       const userList = allUsers
-        .filter((u) => u.username !== socket.username) // ← исключаем самого себя
-        .map((u) => ({
-          username: u.username,
-          avatar: u.avatar,
-          online: connectedUsernames.has(u.username),
-        }));
+        .filter((u) => u.username !== socket.username)
+        .map((u) => {
+          const last = allMessages
+            .filter(
+              (msg) =>
+                (msg.from === u.username && msg.to === socket.username) ||
+                (msg.from === socket.username && msg.to === u.username)
+            )
+            .slice(-1)[0];
+
+          return {
+            username: u.username,
+            avatar: u.avatar,
+            online: connectedUsernames.has(u.username),
+            lastText: last?.text || "",
+            lastFrom: last?.from || null,
+          };
+        });
 
       socket.emit("users", userList); // каждому отправляем свой список
     }
@@ -157,6 +201,9 @@ io.on("connection", async (socket) => {
   } catch (err) {
     console.error("Ошибка загрузки истории:", err);
   }
+  socket.on("request users update", () => {
+    broadcastUsers();
+  });
 
   // 🔄 Отправляем список всем
   broadcastUsers();
@@ -164,6 +211,28 @@ io.on("connection", async (socket) => {
   socket.broadcast.emit("user connected", {
     userID: socket.id,
     username: socket.username,
+  });
+
+  socket.on("typing", ({ to }) => {
+    for (let [id, s] of io.of("/").sockets) {
+      if (s.username === to) {
+        io.to(id).emit("typing", { from: socket.username });
+        break;
+      }
+    }
+  });
+
+  socket.on("stop typing", ({ to }) => {
+    console.log("0000");
+    for (let [id, s] of io.of("/").sockets) {
+      if (s.username === to) {
+        console.log("data", s.username, to, id);
+
+        io.to(id).emit("stop typing", { from: socket.username });
+        console.log(`✉️ stop typing отправлен пользователю ${to} → ${id}`);
+        break;
+      }
+    }
   });
 
   // 💬 Приватные сообщения
@@ -178,6 +247,7 @@ io.on("connection", async (socket) => {
       text: content,
       avatar: socket.avatar,
       timestamp: new Date().toISOString(),
+      isRead: false, // ⬅️ новый флаг
     };
 
     try {

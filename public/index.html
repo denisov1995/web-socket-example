@@ -54,19 +54,38 @@
 
     <div id="chatUI" style="display: none">
       <div id="publicChatContainer">
-        <h3>Общий чат</h3>
-        <div id="publicChat" class="chat-box"></div>
-        <input
-          type="text"
-          id="publicInput"
-          placeholder="Написать в общий чат"
-        />
-        <button onclick="sendPublicMessage()">Отправить</button>
+        <h3 onclick="togglePublicChat()" style="cursor: pointer">
+          Общий чат ▸
+        </h3>
+
+        <div id="publicChatContent" style="display: none">
+          <div id="publicChat" class="chat-box"></div>
+          <input
+            type="text"
+            id="publicInput"
+            placeholder="Написать в общий чат"
+          />
+          <button onclick="sendPublicMessage()">Отправить</button>
+        </div>
       </div>
-      <div id="users"></div>
-      <div id="chat"></div>
-      <input id="msgInput" placeholder="Введите сообщение" />
-      <button disabled id="sendBtn" onclick="sendMessage()">Отправить</button>
+
+      <div class="desktop-wrapper" id="privateChatContainer">
+        <h3 onclick="togglePrivateChat()" style="cursor: pointer">
+          Приватный чат ▸
+        </h3>
+        <div id="privateChatContent" style="display: none">
+          <div id="users"></div>
+          <div class="chat-wrapper">
+            <div id="chat"></div>
+            <div
+              id="typingIndicator"
+              style="font-style: italic; color: gray"
+            ></div>
+            <input id="msgInput" placeholder="Введите сообщение" />
+            <button disabled id="sendBtn" onclick="sendMessage()">Отправить</button>
+          </div>
+        </div>
+      </div>
     </div>
   </body>
 </html>

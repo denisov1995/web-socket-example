@@ -11,7 +11,7 @@ pipeline {
     }
     stage('Build Docker Image') {
       steps {
-        sh 'docker build -t nero010/chat-app .'
+        sh 'docker build --no-cache -t nero010/chat-app .'
       }
     }
     stage('Push to Hub') {

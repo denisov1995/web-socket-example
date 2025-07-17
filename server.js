@@ -411,8 +411,8 @@ io.on("connection", async (socket) => {
           message.sender,
           message.receiver,
           message.text,
-          message.avatar,
           message.image,
+          message.avatar,
           message.is_read,
         ]
       );

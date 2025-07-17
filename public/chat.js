@@ -138,20 +138,16 @@ async function loadChatHistory(withUsername) {
 
       const authorLabel = from === myUsername ? "Вы" : from;
 
-      if (text) {
-        div.appendChild(document.createTextNode(`${authorLabel}: ${text}`));
-      }
-
       if (image) {
-        if (!text) {
-          div.appendChild(document.createTextNode(`${authorLabel}: `));
-        }
+        div.appendChild(document.createTextNode(`${authorLabel}: `));
         const img = document.createElement("img");
         img.src = image;
         img.style.maxWidth = "200px";
         img.style.borderRadius = "6px";
         img.style.marginTop = "6px";
         div.appendChild(img);
+      } else if (text) {
+        div.appendChild(document.createTextNode(`${authorLabel}: ${text}`));
       }
 
       if (timestamp) {
@@ -300,8 +296,6 @@ async function initChat() {
   });
 
   socket.on("public message", ({ from, avatar, text }) => {
-    console.log("from", from);
-
     const div = document.createElement("div");
     div.className = "msg";
     if (from === myUsername) div.classList.add("you");
@@ -323,13 +317,9 @@ async function initChat() {
   socket.on(
     "private message",
     ({ sender: from, receiver: to, avatar, text }) => {
-      console.log("receiver", to);
-
       const isRelevant =
         from === selectedUsername ||
         (from === myUsername && to === selectedUsername);
-
-      console.log("isRelevant", isRelevant);
 
       if (isRelevant) {
         const div = document.createElement("div");

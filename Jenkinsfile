@@ -1,25 +1,14 @@
 pipeline {
   agent any
   environment {
-    DOCKER_HUB_PASSWORD = credentials('dockerhub') // если настроено как Jenkins secret
+    DOCKER_HUB_TOKEN = credentials('dockerhub-token') // если используешь Jenkins secret
   }
   stages {
-    stage('Checkout') {
-      steps {
-        git 'https://github.com/denisov1995/web-socket-example'
-      }
-    }
-    // stage('Login to Docker Hub') {
-    //   steps {
-    //     sh 'echo $DOCKER_HUB_PASSWORD | docker login -u nero010 --password-stdin'
-    //   }
-    // }
     stage('Docker Login') {
       steps {
         sh 'echo $DOCKER_HUB_TOKEN | docker login -u nero010 --password-stdin'
       }
     }
-
     stage('Build Docker Image') {
       steps {
         sh 'docker build -t nero010/chat-app .'

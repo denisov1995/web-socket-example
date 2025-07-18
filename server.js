@@ -8,6 +8,7 @@ const sqlite3 = require("sqlite3").verbose();
 const { open } = require("sqlite");
 
 const MAX_HISTORY = 50;
+console.log('🔥 Сервер перезапущен!');
 
 const app = express();
 const server = http.createServer(app);
